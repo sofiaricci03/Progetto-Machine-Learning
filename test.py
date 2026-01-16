@@ -5,8 +5,33 @@ from sklearn.metrics import confusion_matrix, classification_report
 import numpy as np
 
 from data.DataSets.fer_dataset import create_dataloaders
-from custom_cnn import CustomCNN   # il tuo modello
 from pathlib import Path
+
+
+# CNN custom semplice (must match the one used in training)
+class SimpleCNN(nn.Module):
+    def __init__(self, num_classes):
+        super(SimpleCNN, self).__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(1, 32, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Conv2d(32, 64, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(64*12*12, 128),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(128, num_classes)
+        )
+
+    def forward(self, x):
+        x = self.features(x)
+        x = self.classifier(x)
+        return x
 
 
 # ------------------------------
@@ -34,7 +59,6 @@ _, _, test_loader, classes = create_dataloaders(
     base_path=DATA_PATH,
     batch_size=64,
     train_transform=transform,
-    val_test_transform=transform,
     augment=False
 )
 
