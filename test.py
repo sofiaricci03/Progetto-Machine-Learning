@@ -34,11 +34,15 @@ class SimpleCNN(nn.Module):
         return x
 
 
+
 # ------------------------------
 # CONFIG
 # ------------------------------
-DATA_PATH = "data/DataSets/train"
-MODEL_PATH = "best_model.pth"
+import json
+with open('configs/config.json', 'r') as f:
+    config = json.load(f)
+DATA_PATH = config["test_data_dir"]
+MODEL_PATH = config["model_save_path"]
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -57,7 +61,7 @@ transform = transforms.Compose([
 # ------------------------------
 _, _, test_loader, classes = create_dataloaders(
     base_path=DATA_PATH,
-    batch_size=64,
+    batch_size=config["batch_size"],
     train_transform=transform,
     augment=False
 )

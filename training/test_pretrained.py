@@ -9,8 +9,13 @@ from sklearn.metrics import classification_report, confusion_matrix
 from pretrained_model import get_pretrained_model
 from data.DataSets.fer_dataset import create_dataloaders
 
-DATA_PATH = "../data/DataSets/train"
-MODEL_PATH = "../best_pretrained.pth"
+
+# Carica configurazione da config.json
+import json
+with open('../configs/config.json', 'r') as f:
+    config = json.load(f)
+DATA_PATH = config["test_data_dir"]
+MODEL_PATH = config["pretrained_model_save_path"]
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Trasformazione
@@ -25,7 +30,7 @@ test_transform = transforms.Compose([
 # DataLoader
 _, _, test_loader, classes = create_dataloaders(
     base_path=DATA_PATH,
-    batch_size=64,
+    batch_size=config["batch_size"],
     train_transform=test_transform,
     augment=False
 )

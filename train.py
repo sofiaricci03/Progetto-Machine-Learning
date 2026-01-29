@@ -1,19 +1,22 @@
 """Addestramento con rete neurale custom"""
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from data.DataSets.fer_dataset import create_dataloaders
 import os
 from pathlib import Path
+import json
 
+# Carica configurazione da config.json
+with open('configs/config.json', 'r') as f:
+    config = json.load(f)
 
-DATA_PATH = "data\\DataSets\\train"
-BATCH_SIZE = 64
-LR = 0.001
-EPOCHS = 10
+DATA_PATH = config["train_data_dir"]
+BATCH_SIZE = config["batch_size"]
+LR = config["learning_rate"]
+EPOCHS = config["num_epochs"]
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-MODEL_SAVE_PATH = "best_model.pth"
+MODEL_SAVE_PATH = config["model_save_path"]
 
 # Trasformazioni
 

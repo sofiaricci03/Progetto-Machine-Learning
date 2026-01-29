@@ -11,12 +11,18 @@ import torch.optim as optim
 from data.DataSets.fer_dataset import create_dataloaders
 from pretrained_model import get_pretrained_model
 
-DATA_PATH = "../data/DataSets/train"
-BATCH_SIZE = 64
-LR = 0.0001     # più basso del custom
-EPOCHS = 10
+
+# Carica configurazione da config.json
+import json
+with open('../configs/config.json', 'r') as f:
+    config = json.load(f)
+
+DATA_PATH = config["train_data_dir"]
+BATCH_SIZE = config["batch_size"]
+LR = config["learning_rate"]
+EPOCHS = config["num_epochs"]
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-MODEL_SAVE_PATH = "../best_pretrained.pth"
+MODEL_SAVE_PATH = config["pretrained_model_save_path"]
 
 # Trasformazioni
 from torchvision import transforms

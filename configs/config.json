@@ -1,0 +1,14 @@
+{
+	"train_data_dir": "data/DataSets/train",
+	"test_data_dir": "data/DataSets/test",
+	"batch_size": 64,
+	"num_epochs": 10,
+	"learning_rate": 0.001,
+	"momentum": 0.9,
+	"weight_decay": 0.0005,
+	"num_workers": 4,
+	"model_save_path": "best_model.pth",
+	"pretrained_model_save_path": "best_pretrained.pth",
+	"input_size": 48,
+	"num_classes": 7
+}
