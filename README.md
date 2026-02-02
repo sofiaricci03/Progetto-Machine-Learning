@@ -84,12 +84,13 @@ Durante l’addestramento:
 ### Addestramento CNN Custom
 ```bash
 python train_custom.py
+```
 
 ### Addestramento Transfer Learning
-
+```bash
 python train_pretrained.py
-
-#🧪 Testing e Valutazione
+```
+### 🧪 Testing e Valutazione
 
 I modelli vengono valutati sul test set tramite:
 
@@ -99,13 +100,17 @@ Classification Report
 
 Confusion Matrix
 
-Test CNN Custom
+## Test CNN Custom
+```bash
 python test_custom.py
+```
 
-Test Transfer Learning
+## Test Transfer Learning
+```bash
 python test_pretrained.py
+```
 
-⚙️ Tecnologie Utilizzate
+### ⚙️ Tecnologie Utilizzate
 
 Python
 
@@ -123,9 +128,9 @@ Scikit-learn
 
 Pillow
 
-📦 Installazione
+### 📦 Installazione
 
 Installare le dipendenze tramite:
-
+```bash
 pip install -r requirements.txt
-
+```
