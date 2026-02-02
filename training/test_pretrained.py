@@ -12,11 +12,18 @@ from data.DataSets.fer_dataset import create_dataloaders
 
 # Carica configurazione da config.json
 import json
-with open('../configs/config.json', 'r') as f:
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+CONFIG_PATH = BASE_DIR / "configs" / "config.json"
+
+with open(CONFIG_PATH, "r") as f:
     config = json.load(f)
-DATA_PATH = config["test_data_dir"]
-MODEL_PATH = config["pretrained_model_save_path"]
+
+DATA_PATH = BASE_DIR / config["test_data_dir"]
+MODEL_PATH = BASE_DIR / config["pretrained_model_save_path"]
+
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 # Trasformazione
 from torchvision import transforms

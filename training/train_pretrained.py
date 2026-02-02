@@ -14,15 +14,19 @@ from pretrained_model import get_pretrained_model
 
 # Carica configurazione da config.json
 import json
-with open('../configs/config.json', 'r') as f:
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+with open(BASE_DIR / "configs" / "config.json", "r") as f:
     config = json.load(f)
 
-DATA_PATH = config["train_data_dir"]
+DATA_PATH = BASE_DIR / config["train_data_dir"]
 BATCH_SIZE = config["batch_size"]
 LR = config["learning_rate"]
 EPOCHS = config["num_epochs"]
+MODEL_SAVE_PATH = BASE_DIR / config["pretrained_model_save_path"]
+
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-MODEL_SAVE_PATH = config["pretrained_model_save_path"]  #punta a pretrained_model_save_path per non sovrascrivere il file  SimpleCNN con i pesi di questo nuovo modello
 
 # Trasformazioni
 from torchvision import transforms

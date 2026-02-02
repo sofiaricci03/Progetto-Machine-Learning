@@ -3,6 +3,7 @@ import torch.nn as nn
 from torchvision import transforms
 from sklearn.metrics import confusion_matrix, classification_report
 import numpy as np
+import json
 
 from data.DataSets.fer_dataset import create_dataloaders
 from pathlib import Path
@@ -35,12 +36,17 @@ class SimpleCNN(nn.Module):
 
 
 # CONFIG
-import json
-with open('configs/config.json', 'r') as f: 
-    config = json.load(f)   #apre il file json e lo carica nella variabile config
-DATA_PATH = config["test_data_dir"] #estrae i percorsi
-MODEL_PATH = config["model_save_path"]
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")   #controlla se gpu è disponibile, se si la usa
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+CONFIG_PATH = BASE_DIR / "configs" / "config.json"
+
+with open(CONFIG_PATH, "r") as f:
+    config = json.load(f)
+
+DATA_PATH = BASE_DIR / config["test_data_dir"]
+MODEL_PATH = BASE_DIR / config["pretrained_model_save_path"]
+
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 # TRANSFORM (validation/test)
