@@ -34,54 +34,43 @@ class SimpleCNN(nn.Module):
         return x
 
 
-
-# ------------------------------
 # CONFIG
-# ------------------------------
 import json
-with open('configs/config.json', 'r') as f:
-    config = json.load(f)
-DATA_PATH = config["test_data_dir"]
+with open('configs/config.json', 'r') as f: 
+    config = json.load(f)   #apre il file json e lo carica nella variabile config
+DATA_PATH = config["test_data_dir"] #estrae i percorsi
 MODEL_PATH = config["model_save_path"]
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")   #controlla se gpu è disponibile, se si la usa
 
 
-# ------------------------------
 # TRANSFORM (validation/test)
-# ------------------------------
+#crea una lista di operazioni da eseguire sulle immagini
 transform = transforms.Compose([
-    transforms.Resize((48, 48)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5], std=[0.5])
+    transforms.Resize((48, 48)),    #ridimensiona le immagini di partenza a 48x48 pixel
+    transforms.ToTensor(),  #converte l'immagine in tensore
+    transforms.Normalize(mean=[0.5], std=[0.5]) #normalizza i valori dei pixel tra -1 e 1 attraveros la formula (pixel - mean) / std
 ])
 
 
-# ------------------------------
 # LOAD TEST SET
-# ------------------------------
-_, _, test_loader, classes = create_dataloaders(
-    base_path=DATA_PATH,
+_, _, test_loader, classes = create_dataloaders(    #usiamo gli underscore per ignorare i primi due output (train e val loader) perchè serve solo il test_loader
     batch_size=config["batch_size"],
     train_transform=transform,
-    augment=False
+    augment=False   #non vogliamo fare data augmentation sul test set
 )
 
 
-# ------------------------------
 # LOAD MODEL
-# ------------------------------
-model = SimpleCNN(num_classes=len(classes))
-model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
+model = SimpleCNN(num_classes=len(classes)) #crea un'istanza del modello SimpleCNN con il numero di classi corretto
+model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))  #carica i pesi salvati del modello dal percorso specificato
 model.to(DEVICE)
-model.eval()
+model.eval()    #disattiva il dropout 
 
 criterion = nn.CrossEntropyLoss()
 
 
-# ------------------------------
 # TEST LOOP
-# ------------------------------
-test_loss = 0
+test_loss = 0   #inizializza la variabile per tenere traccia della perdita totale sul test set
 correct = 0
 total = 0
 
@@ -100,16 +89,20 @@ with torch.no_grad():
         total += labels.size(0)
         correct += (predicted == labels).sum().item()
 
-        all_labels.extend(labels.cpu().numpy())
-        all_preds.extend(predicted.cpu().numpy())
+        all_labels.extend(labels.cpu().numpy()) #sposta le etichette su cpu e le converte in numpy array
+        all_preds.extend(predicted.cpu().numpy()) #fa lo stesso con le predizioni
 
 test_loss /= total
 test_acc = correct / total
 
 
-# ------------------------------
+
 # RESULTS
-# ------------------------------
+#Genera una tabella con tre metriche chiave per ogni emozione
+#precisione : quanet volte volte il modello ha fatto una previsione corretta per una classe specifica
+#recall: quante volte il modello ha fatto una previsione corretta per una classe specifica
+#f1-score: media tra precisione e recall
+
 print("\n=== RISULTATI TEST SET ===")
 print(f"Test Loss: {test_loss:.4f}")
 print(f"Test Accuracy: {test_acc:.4f}\n")
@@ -117,5 +110,7 @@ print(f"Test Accuracy: {test_acc:.4f}\n")
 print("=== CLASSIFICATION REPORT ===")
 print(classification_report(all_labels, all_preds, target_names=classes))
 
+
+#tabella che mostra i punti in cui il modello ha confuso delle emozioni con altre
 print("=== CONFUSION MATRIX ===")
 print(confusion_matrix(all_labels, all_preds))
