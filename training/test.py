@@ -5,37 +5,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import torch
 import torch.nn as nn
 from torchvision import transforms
+from custom_cnn import CustomCNN
 from sklearn.metrics import confusion_matrix, classification_report
 import numpy as np
 import json
 
 from data.DataSets.fer_dataset import create_dataloaders
-
-
-# CNN custom semplice (must match the one used in training)
-class SimpleCNN(nn.Module):
-    def __init__(self, num_classes):
-        super(SimpleCNN, self).__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(1, 32, 3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.Conv2d(32, 64, 3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2)
-        )
-        self.classifier = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(64*12*12, 128),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(128, num_classes)
-        )
-
-    def forward(self, x):
-        x = self.features(x)
-        x = self.classifier(x)
-        return x
 
 
 # CONFIG
@@ -82,7 +57,7 @@ _, _, test_loader, classes = create_dataloaders(    #usiamo gli underscore per i
 
 
 # LOAD MODEL
-model = SimpleCNN(num_classes=len(classes)) #crea un'istanza del modello SimpleCNN con il numero di classi corretto
+model = CustomCNN(num_classes=len(classes)).to(DEVICE) #crea un'istanza del modello CustomCNN con il numero di classi corretto
 model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))  #carica i pesi salvati del modello dal percorso specificato
 model.to(DEVICE)
 model.eval()    #disattiva il dropout 

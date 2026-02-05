@@ -65,33 +65,9 @@ train_loader, val_loader, test_loader, classes = create_dataloaders(
     augment=True
 )
 
-# CNN custom semplice
-
-class SimpleCNN(nn.Module):
-    def __init__(self, num_classes):
-        super(SimpleCNN, self).__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(1, 32, 3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.Conv2d(32, 64, 3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2)
-        )
-        self.classifier = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(64*12*12, 128),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(128, num_classes)
-        )
-
-    def forward(self, x):
-        x = self.features(x)
-        x = self.classifier(x)
-        return x
-
-model = SimpleCNN(num_classes=len(classes)).to(DEVICE)
+# Istanzia il modello CustomCNN
+from training.custom_cnn import CustomCNN
+model = CustomCNN(num_classes=len(classes)).to(DEVICE)
 
 # Loss con pesi per classi sbilanciate
 base_path = Path(DATA_PATH)
