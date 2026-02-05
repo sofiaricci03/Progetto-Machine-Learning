@@ -70,11 +70,11 @@
       "save_best": true,
       "save_last": true,
       "dir": "models",
-      "best_name": "best_model.pt",
-      "last_name": "last_model.pt",
+      "best_name": "best_model.pth",
+      "last_name": "last_model.pth",
       "resume": {
         "enabled": false,
-        "path": "models/last_model.pt"
+        "path": "models/last_model.pth"
       }
     }
   },
