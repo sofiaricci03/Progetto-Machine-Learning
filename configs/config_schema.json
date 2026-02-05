@@ -1,0 +1,234 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["seed", "device", "dataset", "transforms", "training", "model", "logging"],
+  "additionalProperties": false,
+
+  "properties": {
+    "seed": { "type": "integer", "minimum": 0 },
+    "device": { "type": "string", "enum": ["auto", "cpu", "cuda"] },
+
+    "dataset": {
+      "type": "object",
+      "required": ["name", "num_classes", "classes", "paths", "split"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "num_classes": { "type": "integer", "const": 7 },
+
+        "classes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 7,
+          "maxItems": 7
+        },
+
+        "paths": {
+          "type": "object",
+          "required": ["train_root", "test_root"],
+          "additionalProperties": false,
+          "properties": {
+            "train_root": { "type": "string", "minLength": 1 },
+            "test_root": { "type": "string", "minLength": 1 }
+          }
+        },
+
+        "split": {
+          "type": "object",
+          "required": ["method", "train", "val", "test"],
+          "additionalProperties": false,
+          "properties": {
+            "method": { "type": "string", "enum": ["random", "stratified"] },
+            "train": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+            "val": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+            "test": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 }
+          },
+          "allOf": [
+            {
+              "description": "train + val + test must sum to 1.0 (approximately)",
+              "properties": {},
+              "additionalProperties": true
+            }
+          ]
+        }
+      }
+    },
+
+    "transforms": {
+      "type": "object",
+      "required": ["img_size", "normalize", "train", "val_test"],
+      "additionalProperties": false,
+      "properties": {
+        "img_size": { "type": "integer", "minimum": 16, "maximum": 512 },
+
+        "normalize": {
+          "type": "object",
+          "required": ["mean", "std"],
+          "additionalProperties": false,
+          "properties": {
+            "mean": {
+              "type": "array",
+              "items": { "type": "number" },
+              "minItems": 1,
+              "maxItems": 1
+            },
+            "std": {
+              "type": "array",
+              "items": { "type": "number", "exclusiveMinimum": 0 },
+              "minItems": 1,
+              "maxItems": 1
+            }
+          }
+        },
+
+        "train": {
+          "type": "object",
+          "required": ["resize", "augmentation"],
+          "additionalProperties": false,
+          "properties": {
+            "resize": { "type": "boolean" },
+            "augmentation": {
+              "anyOf": [
+                { "type": "null" },
+                {
+                  "type": "object",
+                  "required": ["horizontal_flip", "rotation_deg", "random_resized_crop_scale"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "horizontal_flip": { "type": "boolean" },
+                    "rotation_deg": { "type": "number", "minimum": 0, "maximum": 45 },
+                    "random_resized_crop_scale": {
+                      "type": "array",
+                      "items": { "type": "number" },
+                      "minItems": 2,
+                      "maxItems": 2
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+
+        "val_test": {
+          "type": "object",
+          "required": ["resize", "augmentation"],
+          "additionalProperties": false,
+          "properties": {
+            "resize": { "type": "boolean" },
+            "augmentation": { "type": ["null"] }
+          }
+        }
+      }
+    },
+
+    "training": {
+      "type": "object",
+      "required": [
+        "epochs",
+        "batch_size",
+        "num_workers",
+        "optimizer",
+        "learning_rate",
+        "weight_decay",
+        "loss",
+        "early_stopping",
+        "checkpoint"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "epochs": { "type": "integer", "minimum": 1, "maximum": 500 },
+        "batch_size": { "type": "integer", "minimum": 1, "maximum": 1024 },
+        "num_workers": { "type": "integer", "minimum": 0, "maximum": 16 },
+
+        "optimizer": { "type": "string", "enum": ["adam", "sgd"] },
+        "learning_rate": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+        "weight_decay": { "type": "number", "minimum": 0, "maximum": 1 },
+
+        "loss": {
+          "type": "object",
+          "required": ["type", "class_weights"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "type": "string", "enum": ["cross_entropy"] },
+            "class_weights": { "type": "string", "enum": ["none", "inverse_frequency"] }
+          }
+        },
+
+        "early_stopping": {
+          "type": "object",
+          "required": ["enabled", "monitor", "mode", "patience", "min_delta", "target"],
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "monitor": { "type": "string", "enum": ["val_loss", "val_accuracy"] },
+            "mode": { "type": "string", "enum": ["min", "max"] },
+            "patience": { "type": "integer", "minimum": 1, "maximum": 50 },
+            "min_delta": { "type": "number", "minimum": 0 },
+
+            "target": {
+              "type": "object",
+              "required": ["enabled", "metric", "value"],
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "metric": { "type": "string", "enum": ["val_accuracy", "val_f1"] },
+                "value": { "type": "number", "minimum": 0, "maximum": 1 }
+              }
+            }
+          }
+        },
+
+        "checkpoint": {
+          "type": "object",
+          "required": ["save_best", "save_last", "dir", "best_name", "last_name", "resume"],
+          "additionalProperties": false,
+          "properties": {
+            "save_best": { "type": "boolean" },
+            "save_last": { "type": "boolean" },
+            "dir": { "type": "string", "minLength": 1 },
+            "best_name": { "type": "string", "minLength": 1 },
+            "last_name": { "type": "string", "minLength": 1 },
+
+            "resume": {
+              "type": "object",
+              "required": ["enabled", "path"],
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "path": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "model": {
+      "type": "object",
+      "required": ["name", "finetune"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "enum": ["cnn_simple", "resnet18"] },
+        "finetune": { "type": "boolean" }
+      }
+    },
+
+    "logging": {
+      "type": "object",
+      "required": ["tensorboard"],
+      "additionalProperties": false,
+      "properties": {
+        "tensorboard": {
+          "type": "object",
+          "required": ["enabled", "log_dir"],
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "log_dir": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    }
+  }
+}
