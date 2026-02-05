@@ -1,3 +1,7 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import torch
 import torch.nn as nn
 from torchvision import transforms
@@ -6,7 +10,6 @@ import numpy as np
 import json
 
 from data.DataSets.fer_dataset import create_dataloaders
-from pathlib import Path
 
 
 # CNN custom semplice (must match the one used in training)

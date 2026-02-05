@@ -1,11 +1,14 @@
 """Addestramento con rete neurale custom"""
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from data.DataSets.fer_dataset import create_dataloaders
 import os
-from pathlib import Path
 import json
 
 
