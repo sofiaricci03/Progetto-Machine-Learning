@@ -11,7 +11,14 @@ from sklearn.metrics import confusion_matrix, classification_report
 from data.DataSets.fer_dataset import create_dataloaders
 from utils.config_validator import load_and_validate_config
 from training.custom_cnn import CustomCNN
-from pretrained_model import get_pretrained_model
+# Import del modello pre-trained con fallback per esecuzione come modulo o script
+try:
+    from training.pretrained_model import get_pretrained_model
+except Exception:
+    try:
+        from .pretrained_model import get_pretrained_model
+    except Exception:
+        from pretrained_model import get_pretrained_model
 
 
 def build_transform(cfg):
@@ -87,8 +94,13 @@ def main():
             model_path = models_dir / checkpoint_cfg["best_name"]
 
     if model_path.exists():
-        model.load_state_dict(torch.load(model_path, map_location=device))
-        print(f"✓ Modello caricato da {model_path}")
+        ckpt = torch.load(model_path, map_location=device)
+        if isinstance(ckpt, dict) and "model_state" in ckpt:
+            model.load_state_dict(ckpt["model_state"])
+            print(f"✓ Modello caricato da checkpoint {model_path}")
+        else:
+            model.load_state_dict(ckpt)
+            print(f"✓ Modello caricato da {model_path}")
     else:
         print(f"⚠ File {model_path} non trovato. Usando modello con pesi iniziali.")
 

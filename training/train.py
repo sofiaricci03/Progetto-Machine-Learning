@@ -7,13 +7,22 @@ import sys
 from pathlib import Path
 import argparse
 import time
+from datetime import datetime
+import json
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from data.DataSets.fer_dataset import create_dataloaders
-from pretrained_model import get_pretrained_model
+# Import del modello pre-trained con fallback per esecuzione come modulo o script
+try:
+    from training.pretrained_model import get_pretrained_model
+except Exception:
+    try:
+        from .pretrained_model import get_pretrained_model
+    except Exception:
+        from pretrained_model import get_pretrained_model
 from training.custom_cnn import CustomCNN
 from utils.config_validator import load_and_validate_config
 
@@ -67,6 +76,9 @@ def main():
     parser = argparse.ArgumentParser(description="Train model (custom or pretrained) using config.json")
     parser.add_argument("--model", type=str, help="Override model name from config")
     parser.add_argument("--no-early-stop", action="store_true", help="Disable early stopping even if enabled in config")
+    parser.add_argument("--no-tb", action="store_true", dest="no_tb", help="Disable TensorBoard logging")
+    parser.add_argument("--epochs", type=int, help="Override number of epochs from config")
+    parser.add_argument("--resume", type=str, help="Path to checkpoint file to resume from (overrides config.resume)")
     args = parser.parse_args()
 
     BASE_DIR = Path(__file__).resolve().parent.parent
@@ -91,6 +103,10 @@ def main():
     last_path = models_dir / checkpoint_cfg["last_name"]
     (models_dir).mkdir(parents=True, exist_ok=True)
 
+    # CLI overrides
+    if args.epochs:
+        epochs = args.epochs
+
     # Device
     dev = config.get("device", "auto")
     if dev == "auto":
@@ -98,9 +114,34 @@ def main():
     else:
         device = torch.device(dev)
 
+    # TensorBoard writer (lazy import so tensorboard is optional)
+    writer = None
+    tb_cfg = config.get("logging", {}).get("tensorboard", {})
+    if (not args.no_tb) and tb_cfg.get("enabled", False):
+        try:
+            from torch.utils.tensorboard import SummaryWriter
+        except Exception:
+            print("⚠ TensorBoard non disponibile. Esegui `pip install tensorboard` per abilitare il logging")
+            writer = None
+        else:
+            tb_base = BASE_DIR / tb_cfg.get("log_dir", "runs")
+            tb_dir = tb_base / datetime.now().strftime("%Y%m%d-%H%M%S")
+            writer = SummaryWriter(str(tb_dir))
+            # Log some basic info
+            try:
+                writer.add_text("config", json.dumps({"model": config.get("model"), "training": config.get("training")}, indent=2))
+            except Exception:
+                pass
+
     # transforms & dataloaders
     train_transform = build_transforms(config, mode="train")
     val_transform = build_transforms(config, mode="val_test")
+
+    start_epoch = 1
+    # Resume override from CLI
+    if args.resume:
+        resume_cfg["enabled"] = True
+        resume_cfg["path"] = args.resume
 
     train_loader, val_loader, test_loader, classes = create_dataloaders(
         base_path=data_path,
@@ -132,13 +173,25 @@ def main():
     else:
         optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lr, weight_decay=wd)
 
-    # Resume if requested in config
+    # Resume if requested in config (or via --resume)
     resume_cfg = checkpoint_cfg.get("resume", {"enabled": False})
     if resume_cfg.get("enabled", False):
         resume_path = (BASE_DIR / resume_cfg.get("path")).resolve()
         if resume_path.exists():
-            model.load_state_dict(torch.load(resume_path, map_location=device))
-            print(f"✓ Resumed model weights from {resume_path}")
+            ckpt = torch.load(resume_path, map_location=device)
+            if isinstance(ckpt, dict) and "model_state" in ckpt:
+                model.load_state_dict(ckpt["model_state"])
+                if "optimizer_state" in ckpt:
+                    try:
+                        optimizer.load_state_dict(ckpt["optimizer_state"])
+                    except Exception:
+                        print("⚠ Impossibile ripristinare optimizer state (incompatibile)")
+                start_epoch = ckpt.get("epoch", 0) + 1
+                best_val_acc = ckpt.get("val_acc", 0.0)
+                print(f"✓ Resumed model+optimizer from {resume_path} (epoch {start_epoch-1})")
+            else:
+                model.load_state_dict(ckpt)
+                print(f"✓ Resumed model weights from {resume_path}")
         else:
             print(f"⚠ Resume requested but file not found: {resume_path}")
 
@@ -199,14 +252,40 @@ def main():
         epoch_time = time.time() - start_time
         print(f"Epoch {epoch}/{epochs} | Time {epoch_time:.1f}s | Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}")
 
-        # Checkpointing
+        # TensorBoard logging
+        if writer:
+            writer.add_scalar("train/loss", train_loss, epoch)
+            writer.add_scalar("train/accuracy", train_acc, epoch)
+            writer.add_scalar("val/loss", val_loss, epoch)
+            writer.add_scalar("val/accuracy", val_acc, epoch)
+            # log some parameter histograms every 5 epochs
+            if epoch % 5 == 0:
+                for name, param in model.named_parameters():
+                    if param is not None:
+                        writer.add_histogram(f"params/{name}", param.detach().cpu(), epoch)
+
+        # Checkpointing (save model + optimizer state)
         if checkpoint_cfg.get("save_best", False) and val_acc > best_val_acc:
             best_val_acc = val_acc
-            torch.save(model.state_dict(), best_path)
+            save_dict = {
+                "epoch": epoch,
+                "model_state": model.state_dict(),
+                "optimizer_state": optimizer.state_dict(),
+                "val_acc": val_acc,
+                "val_loss": val_loss,
+            }
+            torch.save(save_dict, best_path)
             print(f"✔ Best model saved to {best_path} (Val Acc: {best_val_acc:.4f})")
 
         if checkpoint_cfg.get("save_last", False):
-            torch.save(model.state_dict(), last_path)
+            save_dict = {
+                "epoch": epoch,
+                "model_state": model.state_dict(),
+                "optimizer_state": optimizer.state_dict(),
+                "val_acc": val_acc,
+                "val_loss": val_loss,
+            }
+            torch.save(save_dict, last_path)
 
         # Early stopping logic
         if es_enabled:
@@ -233,6 +312,12 @@ def main():
             if patience_ctr >= es_patience:
                 print("⛔ Early stopping triggered.")
                 break
+
+    # finish
+    print("Training finished.")
+    if writer:
+        writer.flush()
+        writer.close()
 
     print("Training finished.")
 

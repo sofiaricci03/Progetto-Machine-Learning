@@ -63,7 +63,7 @@ class FER2013Dataset(Dataset):
 # Funzione per creare DataLoader per train, val e test.
 # Il codice guarda dentro la cartella base_path, legge i nomi delle sottocartelle e assegna a ognuna un numero
 
-def create_dataloaders(base_path, batch_size=64, train_transform=None, augment=True, val_ratio=0.15, test_ratio=0.15, shuffle=True, random_seed=42):
+def create_dataloaders(base_path, batch_size=64, train_transform=None, val_transform=None, test_transform=None, augment=True, val_ratio=0.15, test_ratio=0.15, shuffle=True, random_seed=42):
     """
     Crea train, validation e test DataLoader a partire da una struttura di cartelle:
     base_path/
@@ -75,7 +75,9 @@ def create_dataloaders(base_path, batch_size=64, train_transform=None, augment=T
     Args:
         base_path: Path della cartella train di FER2013
         batch_size: batch size
-        train_transform: trasformazioni da applicare
+        train_transform: trasformazioni da applicare al train
+        val_transform: trasformazioni da applicare alla validation (fallback a train_transform)
+        test_transform: trasformazioni da applicare al test (fallback a train_transform)
         augment: True per augmentation sul train
         val_ratio: percentuale validation
         test_ratio: percentuale test
@@ -113,10 +115,13 @@ def create_dataloaders(base_path, batch_size=64, train_transform=None, augment=T
     val_imgs, val_labels = all_images[train_count:train_count+val_count], all_labels[train_count:train_count+val_count]
     test_imgs, test_labels = all_images[train_count+val_count:], all_labels[train_count+val_count:]
 
-    # Crea i dataset PyTorch
+    # Crea i dataset PyTorch (usando transform specifiche quando fornite)
+    val_transform_use = val_transform if val_transform is not None else train_transform
+    test_transform_use = test_transform if test_transform is not None else train_transform
+
     train_dataset = FER2013Dataset(train_imgs, train_labels, transform=train_transform, augment=augment)
-    val_dataset = FER2013Dataset(val_imgs, val_labels, transform=train_transform, augment=False)
-    test_dataset = FER2013Dataset(test_imgs, test_labels, transform=train_transform, augment=False)
+    val_dataset = FER2013Dataset(val_imgs, val_labels, transform=val_transform_use, augment=False)
+    test_dataset = FER2013Dataset(test_imgs, test_labels, transform=test_transform_use, augment=False)
 
     # Crea i DataLoader per batch processing
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle)
