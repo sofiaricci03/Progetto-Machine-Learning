@@ -10,28 +10,47 @@ import json
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+from utils.config_validator import load_and_validate_config
 
-with open(BASE_DIR / "configs" / "config.json", "r") as f:
-    config = json.load(f)
+CONFIG_PATH = BASE_DIR / "configs" / "config.json"
+SCHEMA_PATH = BASE_DIR / "configs" / "config_schema.json"
 
-DATA_PATH = BASE_DIR / config["train_data_dir"]
-BATCH_SIZE = config["batch_size"]
-LR = config["learning_rate"]
-EPOCHS = config["num_epochs"]
-MODEL_SAVE_PATH = BASE_DIR / config["pretrained_model_save_path"]
+config, BASE_DIR = load_and_validate_config(CONFIG_PATH, SCHEMA_PATH, base_dir=BASE_DIR, check_paths=True)
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DATA_PATH = BASE_DIR / config["dataset"]["paths"]["train_root"]
+BATCH_SIZE = config["training"]["batch_size"]
+LR = config["training"]["learning_rate"]
+EPOCHS = config["training"]["epochs"]
+checkpoint = config["training"]["checkpoint"]
+MODEL_SAVE_PATH = BASE_DIR / checkpoint["dir"] / checkpoint["best_name"]
+
+# Device selection
+dev = config.get("device", "auto")
+if dev == "auto":
+    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+else:
+    DEVICE = torch.device(dev)
 
 
 # Trasformazioni
 
 from torchvision import transforms
 
-train_transform = transforms.Compose([
-    transforms.Resize((48,48)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5], std=[0.5])
-])
+img_size = config["transforms"]["img_size"]
+mean = config["transforms"]["normalize"]["mean"]
+std = config["transforms"]["normalize"]["std"]
+
+train_tfms = [transforms.Resize((img_size, img_size))] if config["transforms"]["train"]["resize"] else []
+if config["transforms"]["train"]["augmentation"] is not None:
+    aug = config["transforms"]["train"]["augmentation"]
+    train_tfms.append(transforms.RandomResizedCrop(img_size, scale=tuple(aug["random_resized_crop_scale"])))
+    if aug.get("horizontal_flip", False):
+        train_tfms.append(transforms.RandomHorizontalFlip())
+    if aug.get("rotation_deg", 0) > 0:
+        train_tfms.append(transforms.RandomRotation(aug.get("rotation_deg", 0)))
+
+train_tfms.extend([transforms.ToTensor(), transforms.Normalize(mean=mean, std=std)])
+train_transform = transforms.Compose(train_tfms) 
 
 
 # DataLoader
@@ -72,17 +91,29 @@ class SimpleCNN(nn.Module):
 model = SimpleCNN(num_classes=len(classes)).to(DEVICE)
 
 # Loss con pesi per classi sbilanciate
-
 base_path = Path(DATA_PATH)
 counts_list = [len(list((base_path / cls).glob("*.jpg"))) for cls in classes]
-total_images = sum(counts_list)
-weights = [total_images/c for c in counts_list]
-weights = torch.tensor(weights, dtype=torch.float32).to(DEVICE)
-criterion = nn.CrossEntropyLoss(weight=weights)
+
+if config["training"]["loss"]["class_weights"] == "inverse_frequency":
+    total_images = sum(counts_list)
+    weights = [total_images / c for c in counts_list]
+    weights = torch.tensor(weights, dtype=torch.float32).to(DEVICE)
+    criterion = nn.CrossEntropyLoss(weight=weights)
+else:
+    criterion = nn.CrossEntropyLoss()
 
 # Ottimizzatore
+opt_name = config["training"]["optimizer"].lower()
+wd = config["training"].get("weight_decay", 0.0)
+if opt_name == "adam":
+    optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=wd)
+elif opt_name == "sgd":
+    optimizer = optim.SGD(model.parameters(), lr=LR, weight_decay=wd, momentum=0.9)
+else:
+    optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=wd)
 
-optimizer = optim.Adam(model.parameters(), lr=LR)
+# Ensure checkpoint dir exists
+(MODEL_SAVE_PATH.parent).mkdir(parents=True, exist_ok=True)
 
 # Training loop
 

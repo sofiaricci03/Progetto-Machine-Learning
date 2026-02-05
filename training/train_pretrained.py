@@ -12,30 +12,51 @@ from data.DataSets.fer_dataset import create_dataloaders
 from pretrained_model import get_pretrained_model
 
 
-# Carica configurazione da config.json
-import json
+# Carica e valida configurazione
+from utils.config_validator import load_and_validate_config
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+CONFIG_PATH = BASE_DIR / "configs" / "config.json"
+SCHEMA_PATH = BASE_DIR / "configs" / "config_schema.json"
 
-with open(BASE_DIR / "configs" / "config.json", "r") as f:
-    config = json.load(f)
+config, BASE_DIR = load_and_validate_config(CONFIG_PATH, SCHEMA_PATH, base_dir=BASE_DIR, check_paths=True)
 
-DATA_PATH = BASE_DIR / config["train_data_dir"]
-BATCH_SIZE = config["batch_size"]
-LR = config["learning_rate"]
-EPOCHS = config["num_epochs"]
-MODEL_SAVE_PATH = BASE_DIR / config["pretrained_model_save_path"]
+DATA_PATH = BASE_DIR / config["dataset"]["paths"]["train_root"]
+BATCH_SIZE = config["training"]["batch_size"]
+LR = config["training"]["learning_rate"] if "learning_rate" in config["training"] else config["training"].get("learning_rate", 0.001)
+EPOCHS = config["training"]["epochs"]
+checkpoint = config["training"]["checkpoint"]
+MODEL_SAVE_PATH = BASE_DIR / checkpoint["dir"] / checkpoint["best_name"]
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# Device selection (auto/cpu/cuda)
+dev = config.get("device", "auto")
+if dev == "auto":
+    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+else:
+    DEVICE = torch.device(dev) 
 
 # Trasformazioni
 from torchvision import transforms
 
-train_transform = transforms.Compose([
-    transforms.Resize((48,48)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5], std=[0.5])
-])
+img_size = config["transforms"]["img_size"]
+mean = config["transforms"]["normalize"]["mean"]
+std = config["transforms"]["normalize"]["std"]
+
+train_tfms = []
+if config["transforms"]["train"]["resize"]:
+    train_tfms.append(transforms.Resize((img_size, img_size)))
+
+aug = config["transforms"]["train"]["augmentation"]
+if aug is not None:
+    train_tfms.append(transforms.RandomResizedCrop(img_size, scale=tuple(aug["random_resized_crop_scale"])))
+    if aug.get("horizontal_flip", False):
+        train_tfms.append(transforms.RandomHorizontalFlip())
+    if aug.get("rotation_deg", 0) > 0:
+        train_tfms.append(transforms.RandomRotation(aug.get("rotation_deg", 0)))
+
+train_tfms.extend([transforms.ToTensor(), transforms.Normalize(mean=mean, std=std)])
+
+train_transform = transforms.Compose(train_tfms)
 
 train_loader, val_loader, test_loader, classes = create_dataloaders(
     base_path=DATA_PATH,
@@ -47,14 +68,29 @@ train_loader, val_loader, test_loader, classes = create_dataloaders(
 # Modello pre-trained ResNet18
 model = get_pretrained_model(num_classes=len(classes)).to(DEVICE)
 
-# Class imbalance
+# Class imbalance / criterion
 base_path = Path(DATA_PATH)
 counts = [len(list((base_path / cls).glob("*.jpg"))) for cls in classes]    #crea lista con il numero di immagini per ogni emozione
-total = sum(counts)
-weights = torch.tensor([total/c for c in counts], dtype=torch.float32).to(DEVICE)   #calcola i pesi per la CrossEntropyLoss
 
-criterion = nn.CrossEntropyLoss(weight=weights) #grazie al parametro weight, la loss darà più importanza alle classi con meno esempi
-optimizer = optim.Adam(model.parameters(), lr=LR)   #parametri del modello pre-trained
+if config["training"]["loss"]["class_weights"] == "inverse_frequency":
+    total = sum(counts)
+    weights = torch.tensor([total/c for c in counts], dtype=torch.float32).to(DEVICE)
+    criterion = nn.CrossEntropyLoss(weight=weights)
+else:
+    criterion = nn.CrossEntropyLoss()
+
+# Optimizer
+opt_name = config["training"]["optimizer"].lower()
+wd = config["training"].get("weight_decay", 0.0)
+if opt_name == "adam":
+    optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=wd)
+elif opt_name == "sgd":
+    optimizer = optim.SGD(model.parameters(), lr=LR, weight_decay=wd, momentum=0.9)
+else:
+    optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=wd)
+
+# Ensure checkpoint dir exists
+(MODEL_SAVE_PATH.parent).mkdir(parents=True, exist_ok=True)
 
 best_val_acc = 0    #inizializza la migliore accuratezza di validazione
 

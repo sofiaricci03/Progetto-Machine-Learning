@@ -37,30 +37,42 @@ class SimpleCNN(nn.Module):
 
 # CONFIG
 BASE_DIR = Path(__file__).resolve().parent.parent
+from utils.config_validator import load_and_validate_config
 
 CONFIG_PATH = BASE_DIR / "configs" / "config.json"
+SCHEMA_PATH = BASE_DIR / "configs" / "config_schema.json"
 
-with open(CONFIG_PATH, "r") as f:
-    config = json.load(f)
+config, BASE_DIR = load_and_validate_config(CONFIG_PATH, SCHEMA_PATH, base_dir=BASE_DIR, check_paths=True)
 
-DATA_PATH = BASE_DIR / config["test_data_dir"]
-MODEL_PATH = BASE_DIR / config["pretrained_model_save_path"]
+DATA_PATH = BASE_DIR / config["dataset"]["paths"]["test_root"]
+checkpoint = config["training"]["checkpoint"]
+MODEL_PATH = BASE_DIR / checkpoint["dir"] / checkpoint["best_name"]
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# Device
+dev = config.get("device", "auto")
+if dev == "auto":
+    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+else:
+    DEVICE = torch.device(dev)
 
 
 # TRANSFORM (validation/test)
 #crea una lista di operazioni da eseguire sulle immagini
-transform = transforms.Compose([
-    transforms.Resize((48, 48)),    #ridimensiona le immagini di partenza a 48x48 pixel
-    transforms.ToTensor(),  #converte l'immagine in tensore
-    transforms.Normalize(mean=[0.5], std=[0.5]) #normalizza i valori dei pixel tra -1 e 1 attraveros la formula (pixel - mean) / std
-])
+img_size = config["transforms"]["img_size"]
+mean = config["transforms"]["normalize"]["mean"]
+std = config["transforms"]["normalize"]["std"]
+
+transform_list = []
+if config["transforms"]["val_test"]["resize"]:
+    transform_list.append(transforms.Resize((img_size, img_size)))
+
+transform_list.extend([transforms.ToTensor(), transforms.Normalize(mean=mean, std=std)])
+transform = transforms.Compose(transform_list)
 
 
 # LOAD TEST SET
 _, _, test_loader, classes = create_dataloaders(    #usiamo gli underscore per ignorare i primi due output (train e val loader) perchè serve solo il test_loader
-    batch_size=config["batch_size"],
+    batch_size=config["training"]["batch_size"],
     train_transform=transform,
     augment=False   #non vogliamo fare data augmentation sul test set
 )
