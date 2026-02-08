@@ -18,7 +18,7 @@ import torch
 import torch.nn as nn  
 import torch.optim as optim  
 from data.DataSets.fer_dataset import create_dataloaders, build_transforms, set_seed  
-from data.DataSets.fer_dataset import create_dataloaders, build_transforms, set_seed  
+
 
 # Import del modello pre-trained con fallback per esecuzione come modulo o script
 # Questo blocco try-except permette di importare il modello pre-trained in modi diversi
@@ -153,10 +153,13 @@ def main():
     checkpoint_cfg = config["training"]["checkpoint"]
 
     # === PERCORSI PER SALVARE I MODELLI ===
-    # Costruisce i percorsi dove salvare i modelli addestrati
+    # Costruisce i percorsi dove salvare i modelli addestrati (dipendendo dal modello scelto)
     models_dir = BASE_DIR / checkpoint_cfg["dir"] 
-    best_path = models_dir / checkpoint_cfg["best_name"]  
-    last_path = models_dir / checkpoint_cfg["last_name"] 
+
+    model_tag = config["model"]["name"].lower()
+    best_path = models_dir / f"best_{model_tag}.pth"
+    last_path = models_dir / f"last_{model_tag}.pth"
+
     # Crea la cartella models se non esiste
     # parents=True: crea anche le cartelle intermedie se necessario
     # exist_ok=True: non da errore se la cartella esiste già
@@ -219,12 +222,6 @@ def main():
     # Passa il percorso dei dati, la dimensione del batch e le trasformazioni
     start_epoch = 1  # Epoca da cui partire (1 se nuovo training, può essere > 1 se resume)
     
-    # Resume override from CLI
-    # Se l'utente vuole riprendere da un checkpoint via --resume, aggiorna la config
-    if args.resume:
-        resume_cfg["enabled"] = True  # Abilita il resume
-        resume_cfg["path"] = args.resume  # Usa il percorso specificato dall'utente
-
     # create_dataloaders crea tre DataLoader: train, validation e test
     # Un DataLoader è un iteratore che restituisce batch di dati pronti per l'addestramento
     train_loader, val_loader, test_loader, classes = create_dataloaders(
@@ -285,6 +282,12 @@ def main():
     # Permette di riprendere il training da dove era stato interrotto
     resume_cfg = checkpoint_cfg.get("resume", {"enabled": False})  # Legge config resume
     
+    # Resume override from CLI
+    # Se l'utente vuole riprendere da un checkpoint via --resume, aggiorna la config
+    if args.resume:
+        resume_cfg["enabled"] = True  # Abilita il resume
+        resume_cfg["path"] = args.resume  # Usa il percorso specificato dall'utente
+
     if resume_cfg.get("enabled", False):  # Se resume è abilitato
         # Costruisce il percorso completo al file checkpoint
         resume_path = (BASE_DIR / resume_cfg.get("path")).resolve()
