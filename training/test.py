@@ -99,28 +99,40 @@ def main():
     # Se l'utente ha scelto "best", cerca il file del modello migliore (best_name) nella cartella dei modelli. Se non lo trova, cerca l'ultimo modello salvato (last_name).
     # Se invece ha scelto "last", cerca prima l'ultimo modello salvato e se non lo trova, cerca il modello migliore. In questo modo, se uno dei due file non esiste, l'altro viene usato come fallback. 
     # Se nessuno dei due esiste, viene stampato un messaggio e si procede con i pesi iniziali del modello (non addestrato).
-    selected = args.which
-    if selected == "best":
-        model_path = models_dir / checkpoint_cfg["best_name"]
-        if not model_path.exists():
-            model_path = models_dir / checkpoint_cfg["last_name"]
-    else:
-        model_path = models_dir / checkpoint_cfg["last_name"]
-        if not model_path.exists():
-            model_path = models_dir / checkpoint_cfg["best_name"]
+    # --- Selezione checkpoint coerente col modello scelto (cnn_simple / resnet18) ---
+    model_tag = config["model"]["name"].lower()
 
+
+    best_path = models_dir / f"best_{model_tag}.pth"
+    last_path = models_dir / f"last_{model_tag}.pth"
+
+
+    # Sceglie best o last con fallback (se uno manca prova l'altro)
+    if args.which == "best":
+        model_path = best_path if best_path.exists() else last_path
+    else:
+        model_path = last_path if last_path.exists() else best_path
+
+
+    # --- Caricamento checkpoint ---
     if model_path.exists():
-        ckpt = torch.load(model_path, map_location=device)  # carica i pesi salvati del modello dal percorso specificato
+        ckpt = torch.load(model_path, map_location=device)
         if isinstance(ckpt, dict) and "model_state" in ckpt:
             model.load_state_dict(ckpt["model_state"])
-            print(f"Modello caricato da checkpoint {model_path}")
+            print(f"✓ Modello caricato da checkpoint: {model_path}")
         else:
             model.load_state_dict(ckpt)
-            print(f"Modello caricato da {model_path}")
+            print(f"✓ Modello caricato da pesi: {model_path}")
     else:
-        print(f"File {model_path} non trovato. Usando modello con pesi iniziali.")
+        print(
+            f"⚠ Nessun checkpoint trovato per '{model_tag}'. Cercati:\n"
+            f"  - {best_path}\n"
+            f"  - {last_path}\n"
+            "Uso modello con pesi iniziali."
+        )
 
-    model.eval()  # disattiva il dropout
+
+    model.eval()
     criterion = nn.CrossEntropyLoss()
 
     # TEST LOOP

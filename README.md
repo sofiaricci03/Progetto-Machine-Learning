@@ -83,12 +83,12 @@ Durante l’addestramento:
 
 ### Addestramento CNN Custom
 ```bash
-python train_custom.py
+python train.py
 ```
 
 ### Addestramento Transfer Learning
 ```bash
-python train_pretrained.py
+python train.py --model resnet18
 ```
 ### 🧪 Testing e Valutazione
 
@@ -102,12 +102,12 @@ Confusion Matrix
 
 ## Test CNN Custom
 ```bash
-python test_custom.py
+python test.py
 ```
 
 ## Test Transfer Learning
 ```bash
-python test_pretrained.py
+python test.py --model resnet18
 ```
 
 ### ⚙️ Tecnologie Utilizzate
@@ -127,6 +127,8 @@ Matplotlib
 Scikit-learn
 
 Pillow
+
+Tensorboard
 
 ### 📦 Installazione
 
